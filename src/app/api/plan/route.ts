@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { prompt, simulateError } = body;
+    const { prompt, currentItinerary, refinementPrompt, simulateError } = body;
 
     // 1. Intentional Chaos Mode for Demo & Interview Verification
     if (simulateError === "malformed") {
@@ -45,13 +45,29 @@ export async function POST(req: NextRequest) {
 
     const groq = createGroq({ apiKey });
 
-    // 3. Structured Generation with AbortSignal Propagation
-    const result = await generateText({
-      model: groq("openai/gpt-oss-20b"),
-      output: Output.object({
-        schema: ItinerarySchema,
-      }),
-      prompt: `
+    // Build prompt for either initial generation or follow-up refinement
+    const fullPrompt =
+      refinementPrompt && currentItinerary
+        ? `
+        You are an expert travel planner.
+        Update the existing itinerary based on the user's refinement instruction.
+
+        Original trip request:
+        ${prompt}
+
+        Current Itinerary JSON:
+        ${JSON.stringify(currentItinerary)}
+
+        Refinement instruction:
+        ${refinementPrompt}
+
+        Requirements:
+        - Modify the existing itinerary to satisfy the refinement instruction.
+        - Keep unaffected days and stops intact unless the instruction asks to change them.
+        - Include 3 blocks in the "blocks" array (1 "chart", 1 "checklist", 1 "card").
+        - For unused string fields in a block, pass "". For unused array fields in a block, pass [].
+      `
+        : `
         You are an expert travel planner.
         Create an actionable, realistic day-by-day itinerary.
 
@@ -62,10 +78,22 @@ export async function POST(req: NextRequest) {
         - Organize chronologically by day.
         - Include 2-4 distinct stops per day.
         - Keep stops geographically practical.
-        - Assign unique string IDs to each stop (e.g., "day1-stop1").
+        - Include 3 helpful blocks in the "blocks" array:
+          1. One "chart" block (e.g., Estimated Budget Breakdown with "unit": "₹", populated "data" array, "items": [], "subtitle": "", "content": "", "badge": "").
+          2. One "checklist" block (e.g., Pre-Trip Essentials with populated "items" array, "data": [], "subtitle": "", "content": "", "badge": "", "unit": "").
+          3. One "card" block (e.g., Local Pro Tip with populated "subtitle", "content", "badge", and "data": [], "items": [], "unit": "").
         - Follow the exact output schema.
-      `,
-      temperature: 0.3,
+      `;
+
+    // 3. Structured Generation with AbortSignal Propagation
+    const result = await generateText({
+      model: groq("openai/gpt-oss-20b"),
+      maxOutputTokens: 4096,
+      output: Output.object({
+        schema: ItinerarySchema,
+      }),
+      prompt: fullPrompt,
+      temperature: 0.2,
       abortSignal: req.signal,
     });
 
