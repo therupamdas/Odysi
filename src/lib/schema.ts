@@ -3,6 +3,7 @@ import { z } from "zod";
 // All properties MUST be required primitive or array types for Groq strict json_schema mode.
 // Avoid .optional() and .nullable() so the grammar compiler has zero 'anyOf' branches.
 export const StopSchema = z.object({
+  id: z.string().describe("Unique stop ID, e.g., 'day1-stop1'"),
   time: z.string().describe("Time of the stop, e.g., '09:00 AM'"),
   activity: z.string().describe("Name of the activity or place"),
   location: z.string().describe("Neighborhood, address, or landmark"),
