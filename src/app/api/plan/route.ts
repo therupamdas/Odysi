@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Structured Generation with AbortSignal Propagation
     const result = await generateText({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq("openai/gpt-oss-20b"),
       output: Output.object({
         schema: ItinerarySchema,
       }),
